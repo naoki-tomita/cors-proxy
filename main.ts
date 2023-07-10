@@ -1,5 +1,7 @@
-// Start listening on port 8080 of localhost.
-const server = Deno.listen({ port: 8080 });
+const port = Number.parseInt(Deno.env.get("PORT")!);
+const server = Deno.listen({ port });
+console.log(`Listening port on ${port}`);
+
 
 const proxy = new URL(Deno.env.get("PROXY")!);
 for await (const conn of server) {
