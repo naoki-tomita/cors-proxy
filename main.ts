@@ -1,4 +1,4 @@
-const port = Number.parseInt(Deno.env.get("PORT")!);
+const port = Number.parseInt(Deno.env.get("PORT") ?? "8080");
 const server = Deno.listen({ port });
 console.log(`Listening port on ${port}`);
 
@@ -53,6 +53,21 @@ function createRequest(requestEvent: Deno.RequestEvent): {
   }
 }
 
+async function handleRequest(requestEvent: Deno.RequestEvent) {
+  // request
+  const { url, fetchInit } = createRequest(requestEvent);
+  const response = await fetch(url, fetchInit);
+
+  // wrap response.
+  const headers = copyHeaders(response.headers);
+  const overwrittenHeaders = overwriteHeadersWithAccessControlAllow(requestEvent.request.headers.get("origin")!, headers);
+  const responseInit = {
+    status: response.status,
+    headers: overwrittenHeaders,
+  }
+  requestEvent.respondWith(new Response(response.body, responseInit));
+}
+
 async function serveHttp(conn: Deno.Conn) {
   const httpConn = Deno.serveHttp(conn);
   for await (const requestEvent of httpConn) {
@@ -60,23 +75,12 @@ async function serveHttp(conn: Deno.Conn) {
     switch (requestEvent.request.method.toUpperCase()) {
       case "OPTIONS": {
         handleOptions(requestEvent);
+        console.timeEnd(`${requestEvent.request.method} ${requestEvent.request.url}`)
         break;
       }
       default: {
-        // request
-        const { url, fetchInit } = createRequest(requestEvent);
-        const response = await fetch(url, fetchInit);
-
-        // wrap response.
-        const headers = copyHeaders(response.headers);
-        const overwrittenHeaders = overwriteHeadersWithAccessControlAllow(requestEvent.request.headers.get("origin")!, headers);
-        const responseInit = {
-          status: response.status,
-          headers: overwrittenHeaders,
-        }
-        requestEvent.respondWith(new Response(response.body, responseInit));
+        handleRequest(requestEvent).finally(() => console.timeEnd(`${requestEvent.request.method} ${requestEvent.request.url}`));
       }
     }
-    console.timeEnd(`${requestEvent.request.method} ${requestEvent.request.url}`);
   }
 }
